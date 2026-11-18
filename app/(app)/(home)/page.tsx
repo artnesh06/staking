@@ -13,9 +13,15 @@ import { useEffect, useState } from 'react';
 
 const DEFAULT_BANNERS = [
   {
+    id: 'default-odds-wizard',
     banner_image:
       'https://s9oawqeuub.ufs.sh/f/Ae0rhpcXcgiTFCiheDZdliOCodsxKvZgQHNrSD7Lp0hTekVj',
-    banner_type: 'I'
+    banner_type: 'I',
+    banner_title: 'Odds Wizard',
+    banner_creator: 'artnesh',
+    banner_network: 'Cosmos Hub',
+    banner_cta_link: 'https://stargaze.zone/m/oddswizard',
+    banner_cta_label: 'View Collection'
   }
 ];
 

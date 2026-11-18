@@ -130,6 +130,65 @@ function formatCollection(
   };
 }
 
+const COSMOS_MARKETPLACE_API = process.env.STARGAZE_MARKETPLACE_API || 'https://marketplace-api.cosmos.stargaze-apis.com/api/v1';
+
+type Period = { sort: string; volume: string; delta: string };
+
+/** Table period (sortBy) -> REST stats fields. 6h is not offered by the new API (uses 1d). */
+function periodFor(sortBy: string | null | undefined): Period {
+  switch (sortBy) {
+    case 'VOLUME_USD_7_DAY_DESC':
+      return { sort: 'volume7d', volume: 'volume7d', delta: 'volumeDelta7d' };
+    case 'VOLUME_USD_30_DAY_DESC':
+      return { sort: 'volume30d', volume: 'volume30d', delta: 'volumeDelta30d' };
+    default:
+      return { sort: 'volume1d', volume: 'volume1d', delta: 'volumeDelta1d' };
+  }
+}
+
+function coin(value: any): FormattedPriceInfo {
+  if (!value?.amount) return { value: 0, currency: value?.symbol || 'ATOM', usdValue: 0 };
+  return {
+    value: parseFloat(value.amount) / Math.pow(10, value.exponent ?? 6),
+    currency: value.symbol || 'ATOM',
+    usdValue: value.amountUsd || 0
+  };
+}
+
+/** Collection from marketplace-api.cosmos.stargaze-apis.com -> table row. */
+function formatCosmosCollection(raw: any, period: Period): FormattedCollection {
+  const stats = raw.stats || {};
+  const active = stats.activeTokens || 0;
+  const listed = stats.listedTokens || 0;
+  const media = raw.media || {};
+  return {
+    contractAddress: raw.contractAddress,
+    name: raw.name || 'Unknown Collection',
+    description: raw.description || '',
+    imageUrl:
+      media.type === 'animated_image'
+        ? media.url || ''
+        : media.visualAssets?.md?.url || media.url || '',
+    floorPrice: coin(raw.floorPrice),
+    bestOffer: coin(raw.highestOffer?.price),
+    volume: {
+      value: stats[period.volume]?.amountUsd || 0,
+      change: Math.round((stats.volumeDelta7d || 0) * 100)
+    },
+    owners: {
+      count: stats.uniqueHolders || 0,
+      // the table shows this as the volume change % for the selected period
+      unique: Math.round((stats[period.delta] || 0) * 100)
+    },
+    forSale: {
+      percentage: active > 0 ? Math.round((listed / active) * 100) : 0,
+      count: listed
+    },
+    categories: [],
+    isExplicit: false
+  };
+}
+
 // API handler
 export async function GET(req: NextRequest) {
   if (req.method !== 'GET') {
@@ -176,24 +235,23 @@ export async function GET(req: NextRequest) {
       filterByVerified: filterByVerified === 'true'
     };
 
-    // Initialize service and fetch data
-    const stargazeService = new StargazeService();
-    const rawResponse = await stargazeService.getMarketplaceCollection(params);
-
-    // Format the response for your components
-    const formattedCollections = rawResponse.collections.map((item) =>
-      formatCollection(item, sortBy)
-    );
+    // Stargaze (Cosmos Hub) marketplace REST API - the old GraphQL API is gone
+    const period = periodFor(params.sortBy as string);
+    const apiUrl = `${COSMOS_MARKETPLACE_API}/collections?limit=${params.limit}&offset=${params.offset}&sort=${period.sort}%3Adesc`;
+    const res = await fetch(apiUrl, { signal: AbortSignal.timeout(15_000), next: { revalidate: 300 } });
+    if (!res.ok) throw new Error(`Marketplace API HTTP ${res.status}`);
+    const raw = await res.json();
+    const list: any[] = Array.isArray(raw?.collections) ? raw.collections : [];
+    const formattedCollections = list.map((item) => formatCosmosCollection(item, period));
+    const total = typeof raw?.pageInfo?.total === 'number' ? raw.pageInfo.total : (params.offset ?? 0) + list.length;
 
     // Build pagination info
     const pageInfo = {
-      total: rawResponse.pageInfo.total,
-      offset: rawResponse.pageInfo.offset,
-      limit: rawResponse.pageInfo.limit,
-      hasNextPage:
-        rawResponse.pageInfo.offset + rawResponse.pageInfo.limit <
-        rawResponse.pageInfo.total,
-      hasPreviousPage: rawResponse.pageInfo.offset > 0
+      total,
+      offset: params.offset,
+      limit: params.limit,
+      hasNextPage: list.length === params.limit,
+      hasPreviousPage: (params.offset ?? 0) > 0
     };
 
     // Return formatted response

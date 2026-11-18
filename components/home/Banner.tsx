@@ -370,6 +370,18 @@ const Banner = ({ items }: BannerProps) => {
       }
     }
 
+    // Explicit call-to-action (e.g. the default banner)
+    const cta = banner as any;
+    if (cta.banner_cta_link) {
+      return (
+        <Link href={cta.banner_cta_link} target="_blank">
+          <Button className="h-10 rounded-[10px] bg-white px-8 font-black text-black hover:bg-white md:h-12 md:text-lg">
+            {cta.banner_cta_label || 'View Collection'}
+          </Button>
+        </Link>
+      );
+    }
+
     // Handle banners without launchpad data
     if (banner.banner_minted_date) {
       const now = new Date().getTime();

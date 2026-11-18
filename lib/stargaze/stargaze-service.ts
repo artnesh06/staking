@@ -314,52 +314,63 @@ export class StargazeService {
     }
   }
 
+  /**
+   * Launchpad data for a collection. Stargaze collections now live on the
+   * Cosmos Hub; their data comes from Stargaze's REST APIs
+   * (launchpad-api / marketplace-api .cosmos.stargaze-apis.com). The old
+   * GraphQL API no longer exists. Times are converted from nanoseconds to ms.
+   */
   async getLaunchpad(
     address: string,
-    walletAddress?: string
+    _walletAddress?: string
   ): Promise<LaunchpadCollection> {
-    if (!this.config) {
-      throw new Error('Config not found');
-    }
-
-    const variables = {
-      address,
-      walletAddress
+    const LAUNCHPAD_API =
+      process.env.STARGAZE_LAUNCHPAD_API ||
+      'https://launchpad-api.cosmos.stargaze-apis.com/api/v1';
+    const MARKETPLACE_API =
+      process.env.STARGAZE_MARKETPLACE_API ||
+      'https://marketplace-api.cosmos.stargaze-apis.com/api/v1';
+    const nsToMs = (v: any) =>
+      v === null || v === undefined || v === '' ? v : Math.round(Number(v) / 1e6);
+    const getJson = async (url: string) => {
+      const res = await fetch(url, { signal: AbortSignal.timeout(15_000), cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+      return res.json();
     };
 
-    try {
-      const response = await fetch(
-        `${this.config.graphql_url}?t=${new Date().getTime()}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            Pragma: 'no-cache', // For HTTP/1.0 compatibility
-            Expires: '0' // For older browsers
-          },
-          body: JSON.stringify({
-            query: LAUNCHPAD_QUERY,
-            variables,
-            operationName: 'MinterV2'
-          })
+    const [m, col] = await Promise.all([
+      getJson(`${LAUNCHPAD_API}/minters/${address}`),
+      getJson(`${MARKETPLACE_API}/collections/${address}`).catch(() => null)
+    ]);
+
+    const stage = (st: any) =>
+      st ? { ...st, startTime: nsToMs(st.startTime), endTime: nsToMs(st.endTime) } : st;
+    const minter = m?.minter
+      ? {
+          ...m.minter,
+          currentStage: stage(m.minter.currentStage),
+          mintStages: Array.isArray(m.minter.mintStages) ? m.minter.mintStages.map(stage) : []
         }
-      );
+      : null;
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result: GraphQLResponse<LaunchpadData> = await response.json();
-
-      if (result.errors) {
-        throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`);
-      }
-
-      return result.data.collection;
-    } catch (error) {
-      console.error('Error fetching launchpad data:', error);
-      throw error;
-    }
+    return {
+      contractAddress: m.contractAddress,
+      contractUri: null,
+      name: m.name,
+      description: m.description,
+      website: null,
+      isExplicit: false,
+      minterAddress: minter?.minterAddress ?? null,
+      featured: col?.featured ?? false,
+      floor: col?.floorPrice ?? null,
+      creator: {
+        address: m.creator?.address ?? '',
+        name: m.creator?.name?.name ?? null
+      },
+      royaltyInfo: col?.royaltyInfo ?? null,
+      minterV2: minter,
+      startTradingTime: nsToMs(m.startTradingTime),
+      media: col?.media ?? null
+    } as unknown as LaunchpadCollection;
   }
 }
