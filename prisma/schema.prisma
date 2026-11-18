@@ -1,0 +1,297 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Tambahkan tabel wallet networks untuk mendefinisikan jaringan yang didukung
+model mst_wallet_networks {
+  network_id          Int     @id @default(autoincrement())
+  network_name        String  @unique // contoh: "stargaze", "osmosis", "juno"
+  network_display_name String // contoh: "Stargaze", "Osmosis", "Juno"
+  network_chain_id    String? // contoh: "stargaze-1", "osmosis-1"
+  network_rpc_url     String?
+  network_rest_url    String?
+  network_explorer_url String?
+  network_currency_symbol String? // contoh: "STARS", "OSMO", "JUNO"
+  network_status      String  @default("active") // active, inactive
+  network_icon_url    String?
+  network_order       Int?    @default(0)
+  created_date        DateTime @default(now())
+  updated_date        DateTime @updatedAt
+  
+  // Relasi dengan wallet
+  user_wallets        mst_user_wallets[]
+  network_support     mst_wallet_network_support[]
+}
+
+// Tabel untuk menyimpan supported wallet providers per network
+model mst_wallet_providers {
+  provider_id         Int     @id @default(autoincrement())
+  provider_name       String  // contoh: "keplr", "leap", "cosmostation"
+  provider_display_name String // contoh: "Keplr Wallet", "Leap Wallet"
+  provider_icon_url   String?
+  provider_website_url String?
+  provider_chrome_extension_url String?
+  provider_mobile_app_url String?
+  provider_status     String  @default("active")
+  provider_order      Int?    @default(0)
+  created_date        DateTime @default(now())
+  updated_date        DateTime @updatedAt
+  
+  // Relasi dengan network support
+  network_support     mst_wallet_network_support[]
+  user_wallets        mst_user_wallets[]
+}
+
+// Tabel untuk mapping wallet provider mana yang support network mana
+model mst_wallet_network_support {
+  support_id          Int     @id @default(autoincrement())
+  network_id          Int
+  provider_id         Int
+  is_supported        Boolean @default(true)
+  is_recommended      Boolean @default(false)
+  created_date        DateTime @default(now())
+  
+  network             mst_wallet_networks @relation(fields: [network_id], references: [network_id])
+  provider            mst_wallet_providers @relation(fields: [provider_id], references: [provider_id])
+  
+  @@unique([network_id, provider_id])
+}
+
+// Tabel utama untuk menyimpan wallet connection user
+model mst_user_wallets {
+  wallet_id           Int     @id @default(autoincrement())
+  user_address        String  // referensi ke user utama
+  network_id          Int     // jaringan yang digunakan
+  provider_id         Int     // wallet provider yang digunakan
+  wallet_address      String  // alamat wallet di jaringan tersebut
+  wallet_name         String? // nama wallet (optional, bisa custom dari user)
+  is_primary          Boolean @default(false) // apakah ini wallet utama untuk network ini
+  is_active           Boolean @default(true)
+  connected_date      DateTime @default(now())
+  last_used_date      DateTime @default(now())
+  disconnected_date   DateTime?
+  created_date        DateTime @default(now())
+  updated_date        DateTime @updatedAt
+  
+  // Relasi
+  user                mst_users @relation(fields: [user_address], references: [user_address])
+  network             mst_wallet_networks @relation(fields: [network_id], references: [network_id])
+  provider            mst_wallet_providers @relation(fields: [provider_id], references: [provider_id])
+  
+  // Constraint untuk memastikan satu user hanya punya satu primary wallet per network
+  @@unique([user_address, network_id, wallet_address])
+  @@index([user_address, network_id])
+  @@index([wallet_address, network_id])
+}
+
+model mst_users {
+  user_address           String  @id
+  user_discord_url       String?
+  user_twitter_url       String?
+  user_image_url         String?
+  user_created_date      DateTime?  
+  user_total_points      Int?
+  user_image_preview     String?
+  user_trigger_event     String?
+  
+  // Relasi yang sudah ada
+  mst_staker             mst_staker[]
+  participant            trn_participant[]
+  
+  // Relasi baru dengan wallet
+  user_wallets           mst_user_wallets[]
+}
+
+model mst_project {
+  project_id             Int    @id @default(autoincrement())
+  project_code           String?
+  project_name           String?
+  project_description    String?
+  project_banner         String?
+  project_banner_type    String?
+  project_status         String?
+  project_is_leaderboard String? @default("N")
+  project_icon           String?
+  project_profile_image  String?
+  project_footer_discord String?
+  project_footer_twitter String?
+  project_footer_discord_color String?
+  project_footer_twitter_color String?
+  project_discord_url    String?
+  project_twitter_url    String?
+  project_seqn           Int?
+  project_leaderboard_enddate DateTime?
+  project_symbol         String?
+  project_symbol_img     String?
+  project_chellange_tierrule String?
+  project_chellange_periode String?
+  project_chellange_note    String?
+  project_chellange_img  String?
+  project_chellange_status String? @default("N")
+  project_network        String?
+
+  stakers mst_staker[]
+  rewards mst_reward[]
+  collections mst_collection[]
+}
+
+model mst_reward {
+  reward_id             Int    @id @default(autoincrement())
+  reward_project_id     Int?
+  reward_name           String?
+  reward_image_url      String?
+  reward_collection     String?
+  reward_token_id       String?
+  reward_type           String?
+  reward_rank           Int?
+  reward_chain          String?
+
+  project mst_project? @relation(fields: [reward_project_id], references: [project_id])
+}
+
+model mst_collection {
+  collection_id          Int     @id @default(autoincrement())
+  collection_code        String?
+  collection_address     String?
+  collection_name        String?
+  collection_description String?
+  collection_supply      Int?
+  collection_image_url   String?
+  collection_attr_url    String?
+  collection_banner_url  String?
+  collection_project_id  Int?
+  collection_creator     String?
+  collection_creator_name String?
+  collection_created_date DateTime?
+  collection_royalties   Int?
+  collection_chain       String?
+  collection_seqn        Int?
+  collection_staker_daodao String?
+  collection_website_url String?
+  
+  // Relasi dengan Staker
+  project mst_project? @relation(fields: [collection_project_id], references: [project_id])
+  mst_staker mst_staker[]
+  mst_attributes_reward mst_attributes_reward[]
+}
+
+model mst_staker {
+  staker_id               Int       @id @default(autoincrement())
+  staker_address          String?
+  staker_collection_id    Int?
+  staker_lastclaim_date   DateTime?
+  staker_nft_staked       Int?
+  created_date            DateTime? @default(now())
+  updated_date            DateTime? @updatedAt
+  staker_total_points     Int?
+  staker_red_flag         String?
+  staker_project_id       Int?
+  
+  projects  mst_project? @relation(fields: [staker_project_id], references: [project_id])
+  // Relasi dengan Collection dan Point
+  collection mst_collection? @relation(fields: [staker_collection_id], references: [collection_id])
+  // Relasi dengan User
+  user mst_users? @relation(fields: [staker_address], references: [user_address])
+  trn_point  trn_point[]
+}
+
+model trn_point {
+  point_id            Int       @id @default(autoincrement())
+  point_amount        Int?
+  point_claim_date    DateTime?
+  point_nft_staked    Int?
+  point_staker_id     Int?
+  
+  // Relasi dengan Staker
+  staker mst_staker? @relation(fields: [point_staker_id], references: [staker_id])
+}
+
+model mst_attributes_reward {
+  attr_id             Int       @id @default(autoincrement())
+  attr_key            String?
+  attr_val            String?
+  attr_reward         Int?
+  attr_periode        String?
+  attr_collection_id  Int?
+  collection  mst_collection?  @relation(fields: [attr_collection_id], references: [collection_id])
+}
+
+model trn_distribusi_reward {
+  distribusi_id           Int       @id @default(autoincrement())
+  distribusi_collection   Int?
+  distribusi_project_id   Int?
+  distribusi_reward       String?
+  distribusi_wallet       String?
+  distribusi_is_claimed   String?   @default("N")
+  distribusi_start        DateTime?
+  distribusi_end          DateTime?   
+  distribusi_position     Int?
+  distribusi_type         String?
+  distribusi_tx_hash      String?
+  distribusi_chain        String?   @default("stargaze") // Chain identifier: stargaze, intergaze, megaeth
+  distribusi_chain_data   String?   // JSON string for chain-specific data
+}
+
+model trn_raffle {
+  raffle_id           Int       @id @default(autoincrement())
+  raffle_start        DateTime?
+  raffle_end          DateTime?
+  raffle_price        Int?
+  raffle_price_type   String?
+  raffle_max_ticket   Int?
+  raffle_created_by   String?
+  raffle_created_date DateTime?
+  rewards  mst_raffle_reward[]
+  participants trn_participant[]
+}
+
+model mst_raffle_reward {
+  reward_id           Int       @id @default(autoincrement())
+  reward_type         String?
+  reward_amount       Int?
+  reward_name         String?
+  reward_collection   String?
+  reward_collection_address String?
+  reward_token_id     String?
+  reward_token_img    String?
+  reward_win_address  String?
+  reward_inject_win_address String?
+  reward_raffle_id    Int?
+  reward_tx_hash      String?
+  raffle  trn_raffle?   @relation(fields: [reward_raffle_id], references: [raffle_id])
+}
+
+model trn_participant {
+  participant_id      Int     @id @default(autoincrement())
+  participant_address String?
+  participant_amount  Int?
+  participant_raffle_id Int?
+  participant_created_date DateTime?
+  raffle  trn_raffle?   @relation(fields: [participant_raffle_id], references: [raffle_id])
+  user    mst_users?    @relation(fields: [participant_address], references: [user_address])
+}
+
+model mst_banners {
+  banner_id           Int @id @default(autoincrement())
+  banner_thumbnail        String?
+  banner_image        String?
+  banner_status       String?
+  banner_collection_address String?
+  banner_website      String?
+  banner_twiter       String?
+  banner_discord      String?
+  banner_seqn         Int?
+  banner_type         String?
+  banner_network      String?
+  banner_creator      String?
+  banner_minted_date  DateTime?
+  banner_title        String?
+  banner_minted_link  String?
+  banner_telegram     String?
+}
