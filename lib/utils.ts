@@ -218,7 +218,7 @@ export async function getCollection(collection_address: string): Promise<any> {
       stats: null
     };
   } catch (error) {
-    console.error('Error fetching collection info:', error);
+    // Collections that are not on the Cosmos Hub have no live stats
     return {
       __typename: 'Collection',
       contractAddress: collection_address,

@@ -16,6 +16,8 @@ import { fromBech32, toBech32, toBase64, toUtf8 } from '@cosmjs/encoding';
 
 /** Old Stargaze collection address -> migrated Cosmos Hub contract */
 const MIGRATED_COLLECTIONS: Record<string, string> = {
+  // slug used by the home page collection cards
+  oddswizard: 'cosmos1yvwczgea2pz20thq4gn4xac7664p7h5w6s7ga5x9xhvxgmaczafsda5mze',
   stars1vjxr6hlkjkh0z5u9cnktftdqe8trhu4agcc0p7my4pejfffdsl5sd442c7:
     'cosmos1yvwczgea2pz20thq4gn4xac7664p7h5w6s7ga5x9xhvxgmaczafsda5mze'
 };
@@ -70,6 +72,11 @@ export function toStarsAddress(address: string): string {
 /** Collection address as stored in the app/DB -> contract to query on the Cosmos Hub */
 export function resolveContract(collectionAddress: string): string {
   return MIGRATED_COLLECTIONS[collectionAddress] || collectionAddress;
+}
+
+/** Only Cosmos Hub contract addresses can be queried (other Stargaze collections were not migrated). */
+export function isQueryableContract(collectionAddress: string): boolean {
+  return /^cosmos1[02-9ac-hj-np-z]{38,}$/.test(resolveContract(collectionAddress));
 }
 
 let preferredLcd = 0;
@@ -141,6 +148,9 @@ const collectionCache = new Map<string, { at: number; info: CollectionInfo }>();
 
 export async function getCollectionInfo(collectionAddress: string): Promise<CollectionInfo> {
   const contract = resolveContract(collectionAddress);
+  if (!isQueryableContract(collectionAddress)) {
+    throw new Error(`Collection ${collectionAddress} is not on the Cosmos Hub`);
+  }
   const cached = collectionCache.get(contract);
   if (cached && Date.now() - cached.at < 60 * 60 * 1000) return cached.info;
 

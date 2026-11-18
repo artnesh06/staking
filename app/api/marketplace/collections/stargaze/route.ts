@@ -5,6 +5,34 @@ import {
 } from '@/lib/stargaze/stargaze-service';
 import { FormattedCollection, FormattedPriceInfo } from '@/types/marketplace';
 import { NextRequest, NextResponse } from 'next/server';
+import { getCollectionInfo } from '@/lib/stargaze/cosmoshub-nft';
+
+const ODDS_WIZARD = 'cosmos1yvwczgea2pz20thq4gn4xac7664p7h5w6s7ga5x9xhvxgmaczafsda5mze';
+
+/** Odds Wizard row from its Cosmos Hub contract (marketplace stats are not available there). */
+async function oddsWizardRow(): Promise<FormattedCollection[]> {
+  try {
+    const info = await getCollectionInfo(ODDS_WIZARD);
+    const zero = { value: 0, currency: 'ATOM', usdValue: 0 };
+    return [
+      {
+        contractAddress: ODDS_WIZARD,
+        name: info.name,
+        description: info.description || '',
+        imageUrl: info.image || '',
+        floorPrice: zero,
+        bestOffer: zero,
+        volume: { value: 0, change: 0 },
+        owners: { count: 0, unique: 0 },
+        forSale: { percentage: 0, count: 0 },
+        categories: [],
+        isExplicit: false
+      }
+    ];
+  } catch {
+    return [];
+  }
+}
 export const dynamic = 'force-dynamic';
 
 // Helper functions to format data for your components
@@ -188,14 +216,15 @@ export async function GET(req: NextRequest) {
       'Marketplace collections unavailable:',
       error instanceof Error ? error.message : error
     );
+    const collections = await oddsWizardRow();
     return NextResponse.json(
       {
         success: true,
         unavailable: true,
         data: {
-          collections: [],
+          collections,
           pageInfo: {
-            total: 0,
+            total: collections.length,
             offset: 0,
             limit: 0,
             hasNextPage: false,

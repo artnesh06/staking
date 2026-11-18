@@ -11,14 +11,16 @@ import axios from 'axios';
 import { MoveRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+const DEFAULT_BANNERS = [
+  {
+    banner_image:
+      'https://s9oawqeuub.ufs.sh/f/Ae0rhpcXcgiTFCiheDZdliOCodsxKvZgQHNrSD7Lp0hTekVj',
+    banner_type: 'I'
+  }
+];
+
 export default function HomePage() {
-  const [banners, setBanners] = useState<any[] | []>([
-    {
-      banner_image:
-        'https://s9oawqeuub.ufs.sh/f/Ae0rhpcXcgiTFCiheDZdliOCodsxKvZgQHNrSD7Lp0hTekVj',
-      banner_type: 'I'
-    }
-  ]);
+  const [banners, setBanners] = useState<any[] | []>(DEFAULT_BANNERS);
   const [avatars, setAvatars] = useState<any[] | []>([]);
   const [total, setTotal] = useState<number>(0);
 
@@ -38,7 +40,9 @@ export default function HomePage() {
 
       const timestamp = new Date().getTime();
       const respBanners = await axios.get(`/api/banners?t=${timestamp}`);
-      setBanners(respBanners.data.data);
+      // Keep the default Odds Garden banner until banners are configured
+      const configured = respBanners.data?.data;
+      setBanners(Array.isArray(configured) && configured.length > 0 ? configured : DEFAULT_BANNERS);
     }
 
     fetchData();

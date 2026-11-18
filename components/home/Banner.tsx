@@ -494,12 +494,14 @@ const Banner = ({ items }: BannerProps) => {
                                     {banner?.banner_title}
                                   </h1>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-semibold text-white md:text-base md:text-green-500">
-                                    By {banner?.banner_creator} on{' '}
-                                    {banner?.banner_network}
-                                  </span>
-                                </div>
+                                {banner?.banner_creator && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-semibold text-white md:text-base md:text-green-500">
+                                      By {banner?.banner_creator}
+                                      {banner?.banner_network ? ` on ${banner.banner_network}` : ''}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
 
                               {/* Show stage info if banner has launchpad */}
