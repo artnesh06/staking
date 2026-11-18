@@ -182,16 +182,28 @@ export async function GET(req: NextRequest) {
       }
     );
   } catch (error) {
-    console.error('API Error:', error);
-
-    NextResponse.json(
+    // Stargaze's marketplace API no longer exists (the collections moved to
+    // the Cosmos Hub). Answer with an empty list instead of failing the page.
+    console.warn(
+      'Marketplace collections unavailable:',
+      error instanceof Error ? error.message : error
+    );
+    return NextResponse.json(
       {
-        success: false,
-        error: error instanceof Error ? error.message : 'Internal server error'
+        success: true,
+        unavailable: true,
+        data: {
+          collections: [],
+          pageInfo: {
+            total: 0,
+            offset: 0,
+            limit: 0,
+            hasNextPage: false,
+            hasPreviousPage: false
+          }
+        }
       },
-      {
-        status: 500
-      }
+      { status: 200 }
     );
   }
 }
